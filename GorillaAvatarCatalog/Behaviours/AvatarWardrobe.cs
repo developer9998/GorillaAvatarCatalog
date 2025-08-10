@@ -1,11 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using GorillaAvatarCatalog.Models;
+﻿using GorillaAvatarCatalog.Models;
 using GorillaAvatarCatalog.Tools;
 using GorillaNetworking;
+using Photon.Pun;
 using PlayFab.CloudScriptModels;
 using PlayFab.Json;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using Avatar = GorillaAvatarCatalog.Models.Avatar;
@@ -210,6 +211,7 @@ namespace GorillaAvatarCatalog.Behaviours
                                     Logging.Info($"Loading avatar #{i + 1}");
 
                                     // colour
+
                                     float redValue = Mathf.Clamp01(avatar.PlayerColour.Red / 9f);
                                     PlayerPrefs.SetFloat("redValue", redValue);
 
@@ -219,9 +221,15 @@ namespace GorillaAvatarCatalog.Behaviours
                                     float blueValue = Mathf.Clamp01(avatar.PlayerColour.Blue / 9f);
                                     PlayerPrefs.SetFloat("blueValue", blueValue);
 
-                                    GorillaComputer.instance.UpdateColor(redValue, greenValue, blueValue);
                                     GorillaTagger.Instance.UpdateColor(redValue, greenValue, blueValue);
+                                    GorillaComputer.instance.UpdateColor(redValue, greenValue, blueValue);
+
                                     PlayerPrefs.Save();
+
+                                    if (NetworkSystem.Instance.InRoom)
+                                    {
+                                        GorillaTagger.Instance.myVRRig.SendRPC(nameof(VRRigSerializer.RPC_InitializeNoobMaterial), RpcTarget.All, redValue, greenValue, blueValue);
+                                    }
 
                                     // name
                                     GorillaComputer.instance.currentName = avatar.PlayerName;
@@ -229,7 +237,7 @@ namespace GorillaAvatarCatalog.Behaviours
                                     {
                                         FunctionResult = new JsonObject
                                         {
-                                            ["result"] = "0"
+                                            ["result"] = (int)GorillaComputer.NameCheckResult.Success
                                         }
                                     });
 

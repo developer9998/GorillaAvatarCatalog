@@ -1,7 +1,7 @@
-﻿using System.Collections.Generic;
-using System.IO;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.Collections.Generic;
+using System.IO;
 
 namespace GorillaAvatarCatalog.Behaviours
 {
@@ -12,12 +12,30 @@ namespace GorillaAvatarCatalog.Behaviours
         private readonly Dictionary<string, object> session_data = [];
         private Dictionary<string, object> stored_data = [];
 
+        private JsonSerializerSettings serializeSettings, deserializeSettings;
+
         public override void Initialize()
         {
+            var vector3Converter = new Vector3Converter();
+
+            serializeSettings = new JsonSerializerSettings
+            {
+                TypeNameHandling = TypeNameHandling.All,
+                CheckAdditionalContent = true,
+                Formatting = Formatting.Indented
+            };
+            serializeSettings.Converters.Add(vector3Converter);
+
+            deserializeSettings = new JsonSerializerSettings
+            {
+                TypeNameHandling = TypeNameHandling.All
+            };
+            deserializeSettings.Converters.Add(vector3Converter);
+
             if (File.Exists(PreferencePath))
-                stored_data = JsonConvert.DeserializeObject<Dictionary<string, object>>(File.ReadAllText(PreferencePath));
+                stored_data = JsonConvert.DeserializeObject<Dictionary<string, object>>(File.ReadAllText(PreferencePath), deserializeSettings);
             else
-                File.WriteAllText(PreferencePath, JsonConvert.SerializeObject(stored_data, Formatting.Indented));
+                File.WriteAllText(PreferencePath, JsonConvert.SerializeObject(stored_data, serializeSettings));
         }
 
         public T GetValue<T>(string key, T defaultValue, EPreferenceLocation destination = EPreferenceLocation.Stored)
@@ -51,7 +69,7 @@ namespace GorillaAvatarCatalog.Behaviours
             else dictionary.Add(key, value);
 
             if (destination == EPreferenceLocation.Stored)
-                File.WriteAllText(PreferencePath, JsonConvert.SerializeObject(stored_data, Formatting.Indented));
+                File.WriteAllText(PreferencePath, JsonConvert.SerializeObject(stored_data, serializeSettings));
         }
 
         public void DeleteKey(string key, EPreferenceLocation destination = EPreferenceLocation.Stored)
@@ -63,7 +81,7 @@ namespace GorillaAvatarCatalog.Behaviours
                 dictionary.Remove(key);
 
                 if (destination == EPreferenceLocation.Stored)
-                    File.WriteAllText(PreferencePath, JsonConvert.SerializeObject(stored_data, Formatting.Indented));
+                    File.WriteAllText(PreferencePath, JsonConvert.SerializeObject(stored_data, serializeSettings));
             }
         }
 
