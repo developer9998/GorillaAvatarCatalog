@@ -213,23 +213,25 @@ namespace GorillaAvatarCatalog.Behaviours
                                     // colour
 
                                     float redValue = Mathf.Clamp01(avatar.PlayerColour.Red / 9f);
-                                    PlayerPrefs.SetFloat("redValue", redValue);
-
                                     float greenValue = Mathf.Clamp01(avatar.PlayerColour.Green / 9f);
-                                    PlayerPrefs.SetFloat("greenValue", greenValue);
-
                                     float blueValue = Mathf.Clamp01(avatar.PlayerColour.Blue / 9f);
+
+                                    PlayerPrefs.SetFloat("redValue", redValue);
+                                    PlayerPrefs.SetFloat("greenValue", greenValue);
                                     PlayerPrefs.SetFloat("blueValue", blueValue);
-
-                                    GorillaTagger.Instance.UpdateColor(redValue, greenValue, blueValue);
-                                    GorillaComputer.instance.UpdateColor(redValue, greenValue, blueValue);
-
                                     PlayerPrefs.Save();
 
+                                    GorillaComputer.instance.UpdateColor(redValue, greenValue, blueValue);
+                                    GorillaTagger.Instance.UpdateColor(redValue, greenValue, blueValue);
+
+                                    // GorillaComputer.OnPlayerNameChecked sends the call, regardless of name check result
+
+                                    /*
                                     if (NetworkSystem.Instance.InRoom)
                                     {
                                         GorillaTagger.Instance.myVRRig.SendRPC(nameof(VRRigSerializer.RPC_InitializeNoobMaterial), RpcTarget.All, redValue, greenValue, blueValue);
                                     }
+                                    */
 
                                     // name
                                     GorillaComputer.instance.currentName = avatar.PlayerName;
