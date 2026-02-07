@@ -7,7 +7,7 @@ using static GorillaNetworking.CosmeticsController;
 namespace GorillaAvatarCatalog.Models
 {
     [Serializable]
-    public class Avatar
+    public class PlayerAvatar
     {
         [JsonProperty(PropertyName = "username")]
         public string PlayerName { get; set; }

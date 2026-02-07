@@ -1,7 +1,7 @@
 ﻿using GorillaAvatarCatalog.Models;
 using GorillaAvatarCatalog.Tools;
 using GorillaNetworking;
-using Photon.Pun;
+using GorillaTag;
 using PlayFab.CloudScriptModels;
 using PlayFab.Json;
 using System;
@@ -9,8 +9,8 @@ using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
-using Avatar = GorillaAvatarCatalog.Models.Avatar;
 using CosmeticSlots = GorillaNetworking.CosmeticsController.CosmeticSlots;
+using PlayerAvatar = GorillaAvatarCatalog.Models.PlayerAvatar;
 
 namespace GorillaAvatarCatalog.Behaviours
 {
@@ -23,11 +23,16 @@ namespace GorillaAvatarCatalog.Behaviours
 
         private CosmeticWardrobe cosmeticWardrobe;
 
-        private ClientButton outfitSaveButton, outfitLoadButton;
+        private PushButton outfitSaveButton, outfitLoadButton;
 
         public void Awake()
         {
             cosmeticWardrobe = GetComponent<CosmeticWardrobe>();
+
+            cosmeticWardrobe.previousOutfit.gameObject.SetActive(false);
+            cosmeticWardrobe.nextOutfit.gameObject.SetActive(false);
+            cosmeticWardrobe.outfitText.gameObject.SetActive(false);
+            cosmeticWardrobe.outfitTextOutline.gameObject.SetActive(false);
 
             GameObject templateButton = cosmeticWardrobe.cosmeticCategoryButtons.First()?.button?.gameObject;
 
@@ -41,12 +46,12 @@ namespace GorillaAvatarCatalog.Behaviours
             });
 
             CosmeticCategoryButton component = outfitSaveButtonObject.GetComponent<CosmeticCategoryButton>();
-            outfitSaveButton = outfitSaveButtonObject.AddComponent<ClientButton>();
+            outfitSaveButton = outfitSaveButtonObject.AddComponent<PushButton>();
             outfitSaveButton.ButtonRenderer = outfitSaveButtonObject.GetComponent<MeshRenderer>();
             outfitSaveButton.PressedMaterial = component.pressedMaterial;
             outfitSaveButton.UnpressedMaterial = component.unpressedMaterial;
             Destroy(component);
-            outfitSaveButton.ButtonActivated += (isLeftHand) => SwitchState(EAvatarWardrobeState.SaveAvatar);
+            outfitSaveButton.OnActivated += (isLeftHand) => SwitchState(EAvatarWardrobeState.SaveAvatar);
 
             InstantiateButton(templateButton, out GameObject outfitLoadButtonObject, out List<TMP_Text> outfitLoadText);
             outfitLoadButtonObject.transform.localPosition = new Vector3(0.255f, -0.195f + 0.06f, -0.045f);
@@ -58,12 +63,12 @@ namespace GorillaAvatarCatalog.Behaviours
             });
 
             component = outfitLoadButtonObject.GetComponent<CosmeticCategoryButton>();
-            outfitLoadButton = outfitLoadButtonObject.AddComponent<ClientButton>();
+            outfitLoadButton = outfitLoadButtonObject.AddComponent<PushButton>();
             outfitLoadButton.ButtonRenderer = outfitLoadButtonObject.GetComponent<MeshRenderer>();
             outfitLoadButton.PressedMaterial = component.pressedMaterial;
             outfitLoadButton.UnpressedMaterial = component.unpressedMaterial;
             Destroy(component);
-            outfitLoadButton.ButtonActivated += (isLeftHand) => SwitchState(EAvatarWardrobeState.LoadAvatar);
+            outfitLoadButton.OnActivated += (isLeftHand) => SwitchState(EAvatarWardrobeState.LoadAvatar);
         }
 
         public void SwitchState(EAvatarWardrobeState newState)
@@ -112,14 +117,14 @@ namespace GorillaAvatarCatalog.Behaviours
                     _ => 0
                 };
 
-                Avatar displayedAvatar = Preferences.Instance.GetValue<Avatar>($"Avatar {i + 1 + startPosition}", null);
+                PlayerAvatar displayedAvatar = AvatarPreferences.Instance.GetAvatar(i + 1 + startPosition);
 
                 if (displayedAvatar == null || !displayedAvatar.IsValid)
                 {
                     if (displayedAvatar != null)
                     {
                         Logging.Info($"Removed invalid avatar #{i + 1 + startPosition}");
-                        Preferences.Instance.DeleteKey($"Avatar {i + 1 + startPosition}");
+                        AvatarPreferences.Instance.DeleteAvatar(i + 1 + startPosition);
                     }
 
                     selection.displayHead._ClearCurrent();
@@ -156,11 +161,11 @@ namespace GorillaAvatarCatalog.Behaviours
             switch (currentState)
             {
                 case EAvatarWardrobeState.LoadAvatar:
-                    loadedAvatarPage++;
+                    loadedAvatarPage = Math.Max(loadedAvatarPage + 1, 0);
                     DisplayAvatars();
                     break;
                 case EAvatarWardrobeState.SaveAvatar:
-                    savedAvatarPage++;
+                    savedAvatarPage = Math.Max(savedAvatarPage + 1, 0);
                     DisplayAvatars();
                     break;
             }
@@ -171,11 +176,11 @@ namespace GorillaAvatarCatalog.Behaviours
             switch (currentState)
             {
                 case EAvatarWardrobeState.LoadAvatar:
-                    loadedAvatarPage--;
+                    loadedAvatarPage = Math.Max(loadedAvatarPage - 1, 0);
                     DisplayAvatars();
                     break;
                 case EAvatarWardrobeState.SaveAvatar:
-                    savedAvatarPage--;
+                    savedAvatarPage = Math.Max(savedAvatarPage - 1, 0);
                     DisplayAvatars();
                     break;
             }
@@ -188,81 +193,65 @@ namespace GorillaAvatarCatalog.Behaviours
                 var selection = cosmeticWardrobe.cosmeticCollectionDisplays[i];
                 if (selection.selectButton == button)
                 {
-                    Avatar avatar;
+                    PlayerAvatar avatar;
                     CosmeticsController cosmeticsController;
                     int startPosition;
 
                     switch (currentState)
                     {
                         case EAvatarWardrobeState.LoadAvatar:
-                            bool inProximity = !NetworkSystem.Instance.InRoom || GorillaComputer.instance.friendJoinCollider.playerIDsCurrentlyTouching.Contains(NetworkSystem.Instance.GetMyUserID()) || CosmeticWardrobeProximityDetector.IsUserNearWardrobe(NetworkSystem.Instance.GetMyUserID());
-                            if (inProximity)
+                            startPosition = currentState switch
                             {
-                                startPosition = currentState switch
+                                EAvatarWardrobeState.LoadAvatar => loadedAvatarPage * cosmeticWardrobe.cosmeticCollectionDisplays.Length,
+                                EAvatarWardrobeState.SaveAvatar => savedAvatarPage * cosmeticWardrobe.cosmeticCollectionDisplays.Length,
+                                _ => 0
+                            };
+
+                            avatar = AvatarPreferences.Instance.GetAvatar(i + 1 + startPosition);
+
+                            if (avatar != null)
+                            {
+                                Logging.Info($"Loading avatar #{i + 1}");
+
+                                cosmeticsController = CosmeticsController.instance;
+
+                                // colour
+
+                                float redValue = Mathf.Clamp01(avatar.PlayerColour.Red / 9f);
+                                float greenValue = Mathf.Clamp01(avatar.PlayerColour.Green / 9f);
+                                float blueValue = Mathf.Clamp01(avatar.PlayerColour.Blue / 9f);
+
+                                cosmeticsController.UpdateMonkeColor(new Vector3(redValue, greenValue, blueValue), true);
+
+                                // name
+
+                                GorillaComputer.instance.currentName = avatar.PlayerName;
+                                GorillaComputer.instance.OnPlayerNameChecked(new ExecuteFunctionResult
                                 {
-                                    EAvatarWardrobeState.LoadAvatar => loadedAvatarPage * cosmeticWardrobe.cosmeticCollectionDisplays.Length,
-                                    EAvatarWardrobeState.SaveAvatar => savedAvatarPage * cosmeticWardrobe.cosmeticCollectionDisplays.Length,
-                                    _ => 0
-                                };
+                                    FunctionResult = new JsonObject
+                                    {
+                                        ["result"] = (int)GorillaComputer.NameCheckResult.Success
+                                    }
+                                });
 
-                                avatar = Preferences.Instance.GetValue<Avatar>($"Avatar {i + 1 + startPosition}", null);
-                                if (avatar != null)
+                                // cosmetics
+
+                                for (int j = 0; j < cosmeticsController.currentWornSet.items.Length; j++)
                                 {
-                                    Logging.Info($"Loading avatar #{i + 1}");
-
-                                    // colour
-
-                                    float redValue = Mathf.Clamp01(avatar.PlayerColour.Red / 9f);
-                                    float greenValue = Mathf.Clamp01(avatar.PlayerColour.Green / 9f);
-                                    float blueValue = Mathf.Clamp01(avatar.PlayerColour.Blue / 9f);
-
-                                    PlayerPrefs.SetFloat("redValue", redValue);
-                                    PlayerPrefs.SetFloat("greenValue", greenValue);
-                                    PlayerPrefs.SetFloat("blueValue", blueValue);
-                                    PlayerPrefs.Save();
-
-                                    GorillaComputer.instance.UpdateColor(redValue, greenValue, blueValue);
-                                    GorillaTagger.Instance.UpdateColor(redValue, greenValue, blueValue);
-
-                                    // GorillaComputer.OnPlayerNameChecked sends the call, regardless of name check result
-
-                                    /*
-                                    if (NetworkSystem.Instance.InRoom)
-                                    {
-                                        GorillaTagger.Instance.myVRRig.SendRPC(nameof(VRRigSerializer.RPC_InitializeNoobMaterial), RpcTarget.All, redValue, greenValue, blueValue);
-                                    }
-                                    */
-
-                                    // name
-                                    GorillaComputer.instance.currentName = avatar.PlayerName;
-                                    GorillaComputer.instance.OnPlayerNameChecked(new ExecuteFunctionResult
-                                    {
-                                        FunctionResult = new JsonObject
-                                        {
-                                            ["result"] = (int)GorillaComputer.NameCheckResult.Success
-                                        }
-                                    });
-
-                                    // cosmetics
-                                    cosmeticsController = CosmeticsController.instance;
-
-                                    for (int j = 0; j < cosmeticsController.currentWornSet.items.Length; j++)
-                                    {
-                                        CosmeticSlots slot = (CosmeticSlots)j;
-                                        cosmeticsController.currentWornSet.items[j] = avatar.Cosmetics.TryGetValue(slot, out string itemName) ? cosmeticsController.GetItemFromDict(cosmeticsController.GetItemNameFromDisplayName(itemName)) : cosmeticsController.nullItem;
-                                    }
-
-                                    cosmeticsController.SaveCurrentItemPreferences();
-
-                                    cosmeticsController.UpdateShoppingCart();
-                                    cosmeticsController.UpdateWornCosmetics(true);
-
-                                    cosmeticsController.OnCosmeticsUpdated?.Invoke();
-                                    // cosmeticWardrobe.HandleCosmeticsUpdated();
-
-                                    Logging.Info("Avatar loaded");
-                                    DisplayAvatars();
+                                    CosmeticSlots slot = (CosmeticSlots)j;
+                                    cosmeticsController.currentWornSet.items[j] = avatar.Cosmetics.TryGetValue(slot, out string itemName) ? cosmeticsController.GetItemFromDict(cosmeticsController.GetItemNameFromDisplayName(itemName)) : cosmeticsController.nullItem;
                                 }
+
+                                cosmeticsController.SaveCurrentItemPreferences();
+
+                                cosmeticsController.UpdateShoppingCart();
+                                cosmeticsController.UpdateWornCosmetics(true);
+
+                                cosmeticsController.OnCosmeticsUpdated?.Invoke();
+                                // cosmeticWardrobe.HandleCosmeticsUpdated();
+
+                                Logging.Info("Avatar loaded");
+                                DisplayAvatars();
                             }
                             break;
                         case EAvatarWardrobeState.SaveAvatar:
@@ -297,7 +286,8 @@ namespace GorillaAvatarCatalog.Behaviours
                                 }
                             }
 
-                            Preferences.Instance.SetKey($"Avatar {i + 1 + startPosition}", avatar);
+
+                            AvatarPreferences.Instance.SetAvatar(i + 1 + startPosition, avatar);
                             CosmeticsController.instance.OnCosmeticsUpdated?.Invoke();
 
                             Logging.Info("Avatar saved");
@@ -340,6 +330,13 @@ namespace GorillaAvatarCatalog.Behaviours
                     if (newTmpText.TryGetComponent(out ReparentOnAwakeWithRenderer reparentShit))
                         Destroy(reparentShit);
 
+                    if (newTmpText.TryGetComponent(out StaticLodGroup group))
+                    {
+                        Destroy(group);
+                        newTmpText.GetComponent<TMP_Text>().enabled = true;
+                        newTmpText.GetComponent<Renderer>().enabled = true;
+                    }
+
                     newTextList.Add(newTmpText.GetComponent<TMP_Text>());
                 }
 
@@ -353,6 +350,13 @@ namespace GorillaAvatarCatalog.Behaviours
 
                     if (newTmpText.TryGetComponent(out ReparentOnAwakeWithRenderer reparentShit))
                         Destroy(reparentShit);
+
+                    if (newTmpText.TryGetComponent(out StaticLodGroup group))
+                    {
+                        Destroy(group);
+                        newTmpText.GetComponent<TMP_Text>().enabled = true;
+                        newTmpText.GetComponent<Renderer>().enabled = true;
+                    }
 
                     newTextList.Add(newTmpText.GetComponent<TMP_Text>());
                 }

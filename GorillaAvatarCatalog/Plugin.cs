@@ -21,7 +21,7 @@ namespace GorillaAvatarCatalog
 
             Harmony.CreateAndPatchAll(typeof(Plugin).Assembly, Constants.GUID);
 
-            GorillaTagger.OnPlayerSpawned(() => new GameObject(Constants.GUID, typeof(Preferences)));
+            GorillaTagger.OnPlayerSpawned(() => DontDestroyOnLoad(new GameObject($"{Constants.Name} {Constants.Version}", typeof(AvatarPreferences))));
         }
     }
 }

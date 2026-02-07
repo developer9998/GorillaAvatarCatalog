@@ -3,9 +3,9 @@ using UnityEngine;
 
 namespace GorillaAvatarCatalog.Behaviours
 {
-    public class ClientButton : MonoBehaviour
+    public class PushButton : MonoBehaviour
     {
-        public event Action<bool> ButtonActivated;
+        public event Action<bool> OnActivated;
 
         public Material PressedMaterial;
 
@@ -28,7 +28,7 @@ namespace GorillaAvatarCatalog.Behaviours
                 GorillaTagger.Instance.offlineVRRig.PlayHandTapLocal(67, component.isLeftHand, 0.05f);
                 GorillaTagger.Instance.StartVibration(component.isLeftHand, GorillaTagger.Instance.tapHapticStrength / 2f, GorillaTagger.Instance.tapHapticDuration);
 
-                ButtonActivated?.Invoke(component.isLeftHand);
+                OnActivated?.Invoke(component.isLeftHand);
             }
         }
 
