@@ -32,7 +32,6 @@ namespace GorillaAvatarCatalog.Behaviours
             cosmeticWardrobe.previousOutfit.gameObject.SetActive(false);
             cosmeticWardrobe.nextOutfit.gameObject.SetActive(false);
             cosmeticWardrobe.outfitText.gameObject.SetActive(false);
-            cosmeticWardrobe.outfitTextOutline.gameObject.SetActive(false);
 
             GameObject templateButton = cosmeticWardrobe.cosmeticCategoryButtons.First()?.button?.gameObject;
 
